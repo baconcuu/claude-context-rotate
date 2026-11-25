@@ -1,0 +1,14 @@
+{
+  "name": "dai-chi-huy",
+  "version": "0.9.0",
+  "description": "Đài Chỉ Huy: phòng điều khiển nhiều phiên Claude Code ngay trong app (dải trên ô chat + pane) — Đội hình, Cảnh báo, Dọn dẹp hội thoại cũ, bấm vào phiên là vào thẳng phiên đó; tự đổi chat bằng file bàn giao thay cho /compact.",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "rotateK": { "type": "number", "title": "Ngưỡng rotate (k token)", "description": "rotate_k: context ≥ ngưỡng này là NGUY CẤP.", "required": false, "default": 250 },
+    "warnK": { "type": "number", "title": "Ngưỡng cảnh báo context (k token)", "description": "warn_k: context ≥ ngưỡng này là CHÚ Ý (không vượt rotate_k).", "required": false, "default": 230 },
+    "memWarnMb": { "type": "number", "title": "Cảnh báo RAM (MB)", "description": "mem_warn_mb", "required": false, "default": 1500 },
+    "quietBusyMin": { "type": "number", "title": "Báo bận mà im lặng (phút)", "description": "quiet_busy_min", "required": false, "default": 15 },
+    "cleanupDays": { "type": "number", "title": "Dọn dẹp: N ngày mặc định", "description": "cleanup_days", "required": false, "default": 7 },
+    "cleanupProtectHours": { "type": "number", "title": "Dọn dẹp: bảo vệ file mới ghi (giờ)", "description": "cleanup_protect_hours: không xoá hội thoại ghi trong số giờ này.", "required": false, "default": 24 }
+  }
+}
