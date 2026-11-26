@@ -6,7 +6,7 @@
   <b>English</b> · <a href="README.vi.md">Tiếng Việt</a>
   <br><br>
   <img src="https://img.shields.io/badge/Claude_Code-mod-3987e5?style=flat-square" alt="Claude Code mod">
-  <img src="https://img.shields.io/badge/platform-Windows-0078d4?style=flat-square" alt="Windows">
+  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-0078d4?style=flat-square" alt="Windows, macOS, Linux">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square" alt="MIT license"></a>
 </p>
 
@@ -35,37 +35,60 @@
   <img src="docs/subagents.en.light.png" alt="Subagents vs one solo session with rotation: $10.3 vs $5.2 per active hour, $83 vs $37 in the busiest hour, 592k vs 251k context per call at p90, $0.047 vs $0.062 per 1k output tokens." width="880">
 </picture></p>
 
-That is why the mod blocks the `Agent` and `Workflow` tools in every session. Background shell commands still run.
+That is why the mod can block the `Agent` and `Workflow` tools in every session: turn on `blockAgents`. It is off by default, and background shell commands always run.
 
 ## Install in a minute
 
-Windows with Node on `PATH`, in the desktop app or the terminal. The interface is in English or Vietnamese and follows your system language; set `language` to choose.
+Claude Code 2.1.275 or later and Node on `PATH`, in the desktop app or the terminal. Run this in a session:
+
+```
+/plugin install dai-chi-huy --marketplace baconcuu/claude-context-rotate
+```
+
+Start a new session: the pane opens on its own, or run `/chihuy`. `/plugin uninstall dai-chi-huy@claude-context-rotate` removes it.
+
+The interface is in English or Vietnamese and follows your system language. The mod runs every day on Windows. macOS and Linux support is new and has only run in the tests so far: [reports are welcome](https://github.com/baconcuu/claude-context-rotate/issues/9).
+
+<details>
+<summary><b>Older Claude Code: install from a clone</b></summary>
+<br>
+
+Windows (PowerShell):
 
 ```powershell
 git clone https://github.com/baconcuu/claude-context-rotate "$HOME\.claude\mods\dai-chi-huy"
 ```
 
-Add this to `~/.claude/settings.json`, then start a new session. The pane opens on its own, or run `/chihuy`.
+macOS or Linux:
+
+```bash
+git clone https://github.com/baconcuu/claude-context-rotate ~/.claude/mods/dai-chi-huy
+```
+
+Add this to `~/.claude/settings.json` with your own path (`/Users/<you>/...` on macOS, `/home/<you>/...` on Linux), then start a new session. Remove the line to uninstall.
 
 ```json
 { "env": { "CLAUDE_CODE_PLUGIN_DIRS": "C:\\Users\\<you>\\.claude\\mods\\dai-chi-huy" } }
 ```
 
-Remove the line to uninstall.
+</details>
 
 <details>
 <summary><b>Settings</b></summary>
 <br>
 
-Plugin config for `dai-chi-huy`. Defaults live in `.claude-plugin/plugin.json`. Set your own in `~/.claude/settings.json`:
+Change them with `/plugin configure dai-chi-huy@claude-context-rotate`, or in `~/.claude/settings.json`. Defaults live in `.claude-plugin/plugin.json`.
 
 ```json
-{ "pluginConfigs": { "dai-chi-huy": { "options": { "language": "en", "rotateK": 250 } } } }
+{ "pluginConfigs": { "dai-chi-huy@claude-context-rotate": { "options": { "language": "en", "blockAgents": true } } } }
 ```
+
+A clone loaded through `CLAUDE_CODE_PLUGIN_DIRS` uses the key `dai-chi-huy` instead.
 
 | Setting | Default | Meaning |
 |---|---|---|
 | `language` | auto | Interface language: `en`, `vi`, or `auto` for the system's (English if the mod does not have it) |
+| `blockAgents` | false | Refuse the `Agent` and `Workflow` tools in every session |
 | `rotateK` | 250 | Rotation mark, k tokens |
 | `warnK` | 230 | Context warning, k tokens |
 | `memWarnMb` | 1500 | RAM warning per session, MB |
@@ -109,6 +132,6 @@ About 550 sessions of one heavy user over a month. Costs use API prices as a rel
 
 ## Contributing
 
-Translations and macOS or Linux support are the most wanted. A new language is one file: [CONTRIBUTING.md](CONTRIBUTING.md) shows how, and the [good first issues](https://github.com/baconcuu/claude-context-rotate/labels/good%20first%20issue) list the languages waiting for a translator.
+Translations and tries on macOS or Linux are the most wanted. A new language is one file: [CONTRIBUTING.md](CONTRIBUTING.md) shows how, and the [good first issues](https://github.com/baconcuu/claude-context-rotate/labels/good%20first%20issue) list the languages waiting for a translator.
 
 <p align="center"><sub><a href="LICENSE">MIT</a> · Not affiliated with Anthropic</sub></p>

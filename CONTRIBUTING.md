@@ -1,6 +1,6 @@
 # Contributing
 
-Issues and pull requests are welcome, in English or Vietnamese. The most wanted help: a translation of the interface, and macOS or Linux support (the mod is only tested on Windows).
+Issues and pull requests are welcome, in English or Vietnamese. The most wanted help: a translation of the interface, and trying the mod on macOS or Linux (that code is new and has only run in the tests so far; see issue #9).
 
 ## Run the tests
 

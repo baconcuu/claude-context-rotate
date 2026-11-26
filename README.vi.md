@@ -6,7 +6,7 @@
   <a href="README.md">English</a> · <b>Tiếng Việt</b>
   <br><br>
   <img src="https://img.shields.io/badge/Claude_Code-mod-3987e5?style=flat-square" alt="Claude Code mod">
-  <img src="https://img.shields.io/badge/platform-Windows-0078d4?style=flat-square" alt="Windows">
+  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-0078d4?style=flat-square" alt="Windows, macOS, Linux">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square" alt="Giấy phép MIT"></a>
 </p>
 
@@ -35,37 +35,60 @@
   <img src="docs/subagents.vi.light.png" alt="Subagent và một phiên solo có xoay: $10.3 và $5.2 mỗi giờ hoạt động, $83 và $37 trong giờ cao điểm, context p90 592k và 251k, $0.047 và $0.062 mỗi 1k token output." width="880">
 </picture></p>
 
-Vì vậy mod chặn công cụ `Agent` và `Workflow` ở mọi phiên. Lệnh nền vẫn chạy bình thường.
+Vì vậy mod có thể chặn công cụ `Agent` và `Workflow` ở mọi phiên: bật `blockAgents`. Mặc định tắt, và lệnh nền lúc nào cũng chạy.
 
 ## Cài trong một phút
 
-Cần Windows và Node trên `PATH`; chạy được trong app desktop lẫn terminal. Giao diện tiếng Việt hoặc tiếng Anh, theo ngôn ngữ của hệ thống; Windows để tiếng Anh thì đặt `language` là `vi`.
+Cần Claude Code 2.1.275 trở lên và Node trên `PATH`; chạy được trong app desktop lẫn terminal. Gõ lệnh này trong một phiên:
+
+```
+/plugin install dai-chi-huy --marketplace baconcuu/claude-context-rotate
+```
+
+Mở phiên mới: pane tự mở, hoặc gõ `/chihuy`. Gỡ bằng `/plugin uninstall dai-chi-huy@claude-context-rotate`.
+
+Giao diện tiếng Việt hoặc tiếng Anh, theo ngôn ngữ của hệ thống; Windows để tiếng Anh thì đặt `language` là `vi`. Mod chạy hằng ngày trên Windows. Phần macOS và Linux mới viết, mới chạy trong test: [rất cần người thử](https://github.com/baconcuu/claude-context-rotate/issues/9).
+
+<details>
+<summary><b>Claude Code bản cũ: cài từ bản clone</b></summary>
+<br>
+
+Windows (PowerShell):
 
 ```powershell
 git clone https://github.com/baconcuu/claude-context-rotate "$HOME\.claude\mods\dai-chi-huy"
 ```
 
-Thêm đoạn này vào `~/.claude/settings.json` rồi mở phiên mới. Pane tự mở, hoặc gõ `/chihuy`.
+macOS hoặc Linux:
+
+```bash
+git clone https://github.com/baconcuu/claude-context-rotate ~/.claude/mods/dai-chi-huy
+```
+
+Thêm đoạn này vào `~/.claude/settings.json` với đường dẫn của bạn (`/Users/<tên bạn>/...` trên macOS, `/home/<tên bạn>/...` trên Linux) rồi mở phiên mới. Xoá dòng đó để gỡ.
 
 ```json
 { "env": { "CLAUDE_CODE_PLUGIN_DIRS": "C:\\Users\\<tên bạn>\\.claude\\mods\\dai-chi-huy" } }
 ```
 
-Xoá dòng đó để gỡ.
+</details>
 
 <details>
 <summary><b>Cấu hình</b></summary>
 <br>
 
-Cấu hình plugin `dai-chi-huy`. Giá trị mặc định nằm trong `.claude-plugin/plugin.json`. Đặt giá trị riêng trong `~/.claude/settings.json`:
+Đổi bằng `/plugin configure dai-chi-huy@claude-context-rotate`, hoặc trong `~/.claude/settings.json`. Giá trị mặc định nằm trong `.claude-plugin/plugin.json`.
 
 ```json
-{ "pluginConfigs": { "dai-chi-huy": { "options": { "language": "vi", "rotateK": 250 } } } }
+{ "pluginConfigs": { "dai-chi-huy@claude-context-rotate": { "options": { "language": "vi", "blockAgents": true } } } }
 ```
+
+Bản clone nạp qua `CLAUDE_CODE_PLUGIN_DIRS` thì dùng khoá `dai-chi-huy`.
 
 | Khoá | Mặc định | Ý nghĩa |
 |---|---|---|
 | `language` | auto | Ngôn ngữ giao diện: `vi`, `en`, hoặc `auto` theo ngôn ngữ hệ thống (mod chưa có thì dùng tiếng Anh) |
+| `blockAgents` | false | Chặn công cụ `Agent` và `Workflow` ở mọi phiên |
 | `rotateK` | 250 | Mốc xoay, k token |
 | `warnK` | 230 | Mốc cảnh báo context, k token |
 | `memWarnMb` | 1500 | Cảnh báo RAM mỗi phiên, MB |
@@ -109,6 +132,6 @@ Khoảng 550 phiên của một người dùng nặng trong một tháng. Chi ph
 
 ## Đóng góp
 
-Cần nhất là bản dịch giao diện và hỗ trợ macOS hoặc Linux. Thêm một ngôn ngữ chỉ cần một file: cách làm ở [CONTRIBUTING.md](CONTRIBUTING.md) (tiếng Anh), các ngôn ngữ đang chờ người dịch nằm trong [good first issue](https://github.com/baconcuu/claude-context-rotate/labels/good%20first%20issue).
+Cần nhất là bản dịch giao diện và người thử trên macOS hoặc Linux. Thêm một ngôn ngữ chỉ cần một file: cách làm ở [CONTRIBUTING.md](CONTRIBUTING.md) (tiếng Anh), các ngôn ngữ đang chờ người dịch nằm trong [good first issue](https://github.com/baconcuu/claude-context-rotate/labels/good%20first%20issue).
 
 <p align="center"><sub><a href="LICENSE">MIT</a> · Không liên kết với Anthropic</sub></p>
