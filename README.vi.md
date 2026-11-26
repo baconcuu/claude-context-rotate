@@ -39,7 +39,7 @@ Vì vậy mod chặn công cụ `Agent` và `Workflow` ở mọi phiên. Lệnh 
 
 ## Cài trong một phút
 
-Cần Windows và Node trên `PATH`; chạy được trong app desktop lẫn terminal. Giao diện tiếng Việt.
+Cần Windows và Node trên `PATH`; chạy được trong app desktop lẫn terminal. Giao diện tiếng Việt hoặc tiếng Anh, theo ngôn ngữ của hệ thống; Windows để tiếng Anh thì đặt `language` là `vi`.
 
 ```powershell
 git clone https://github.com/baconcuu/claude-context-rotate "$HOME\.claude\mods\dai-chi-huy"
@@ -57,10 +57,15 @@ Xoá dòng đó để gỡ.
 <summary><b>Cấu hình</b></summary>
 <br>
 
-Cấu hình plugin `dai-chi-huy`. Giá trị mặc định nằm trong `.claude-plugin/plugin.json`.
+Cấu hình plugin `dai-chi-huy`. Giá trị mặc định nằm trong `.claude-plugin/plugin.json`. Đặt giá trị riêng trong `~/.claude/settings.json`:
+
+```json
+{ "pluginConfigs": { "dai-chi-huy": { "options": { "language": "vi", "rotateK": 250 } } } }
+```
 
 | Khoá | Mặc định | Ý nghĩa |
 |---|---|---|
+| `language` | auto | Ngôn ngữ giao diện: `vi`, `en`, hoặc `auto` theo ngôn ngữ hệ thống (mod chưa có thì dùng tiếng Anh) |
 | `rotateK` | 250 | Mốc xoay, k token |
 | `warnK` | 230 | Mốc cảnh báo context, k token |
 | `memWarnMb` | 1500 | Cảnh báo RAM mỗi phiên, MB |
@@ -101,5 +106,9 @@ Khoảng 550 phiên của một người dùng nặng trong một tháng. Chi ph
 | Ghi lại cache sau khi agent chờ lâu | ~$205 | ~$63 |
 
 </details>
+
+## Đóng góp
+
+Cần nhất là bản dịch giao diện và hỗ trợ macOS hoặc Linux. Thêm một ngôn ngữ chỉ cần một file: cách làm ở [CONTRIBUTING.md](CONTRIBUTING.md) (tiếng Anh), các ngôn ngữ đang chờ người dịch nằm trong [good first issue](https://github.com/baconcuu/claude-context-rotate/labels/good%20first%20issue).
 
 <p align="center"><sub><a href="LICENSE">MIT</a> · Không liên kết với Anthropic</sub></p>

@@ -39,7 +39,7 @@ That is why the mod blocks the `Agent` and `Workflow` tools in every session. Ba
 
 ## Install in a minute
 
-Windows with Node on `PATH`, in the desktop app or the terminal. The interface is in Vietnamese.
+Windows with Node on `PATH`, in the desktop app or the terminal. The interface is in English or Vietnamese and follows your system language; set `language` to choose.
 
 ```powershell
 git clone https://github.com/baconcuu/claude-context-rotate "$HOME\.claude\mods\dai-chi-huy"
@@ -57,10 +57,15 @@ Remove the line to uninstall.
 <summary><b>Settings</b></summary>
 <br>
 
-Plugin config for `dai-chi-huy`. Defaults live in `.claude-plugin/plugin.json`.
+Plugin config for `dai-chi-huy`. Defaults live in `.claude-plugin/plugin.json`. Set your own in `~/.claude/settings.json`:
+
+```json
+{ "pluginConfigs": { "dai-chi-huy": { "options": { "language": "en", "rotateK": 250 } } } }
+```
 
 | Setting | Default | Meaning |
 |---|---|---|
+| `language` | auto | Interface language: `en`, `vi`, or `auto` for the system's (English if the mod does not have it) |
 | `rotateK` | 250 | Rotation mark, k tokens |
 | `warnK` | 230 | Context warning, k tokens |
 | `memWarnMb` | 1500 | RAM warning per session, MB |
@@ -101,5 +106,9 @@ About 550 sessions of one heavy user over a month. Costs use API prices as a rel
 | Cache re-writes after long agent waits | ~$205 | ~$63 |
 
 </details>
+
+## Contributing
+
+Translations and macOS or Linux support are the most wanted. A new language is one file: [CONTRIBUTING.md](CONTRIBUTING.md) shows how, and the [good first issues](https://github.com/baconcuu/claude-context-rotate/labels/good%20first%20issue) list the languages waiting for a translator.
 
 <p align="center"><sub><a href="LICENSE">MIT</a> · Not affiliated with Anthropic</sub></p>
