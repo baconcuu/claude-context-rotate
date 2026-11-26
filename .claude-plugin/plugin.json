@@ -1,10 +1,12 @@
 {
   "name": "dai-chi-huy",
-  "version": "0.9.0",
-  "description": "Đài Chỉ Huy: phòng điều khiển nhiều phiên Claude Code ngay trong app (dải trên ô chat + pane) — Đội hình, Cảnh báo, Dọn dẹp hội thoại cũ, bấm vào phiên là vào thẳng phiên đó; tự đổi chat bằng file bàn giao thay cho /compact.",
+  "version": "0.10.0",
+  "description": "Đài Chỉ Huy (command post): rotates a long chat at 250k through a Markdown work card instead of /compact, with a pane for every session, alerts, the quota bars and transcript cleanup.",
+  "author": { "name": "baconcuu" },
   "types": "./types/index.d.ts",
   "userConfig": {
     "language": { "type": "string", "title": "Language · Ngôn ngữ", "description": "auto = the system's language if the mod has it (vi-VN → vi), otherwise English.", "required": false, "default": "auto", "options": ["auto", "en", "vi"] },
+    "blockAgents": { "type": "boolean", "title": "Block subagents · Chặn subagent", "description": "true = refuse the Agent and Workflow tools in every session, so all the work stays in the main one.", "required": false, "default": false },
     "rotateK": { "type": "number", "title": "Ngưỡng rotate (k token)", "description": "rotate_k: context ≥ ngưỡng này là NGUY CẤP.", "required": false, "default": 250 },
     "warnK": { "type": "number", "title": "Ngưỡng cảnh báo context (k token)", "description": "warn_k: context ≥ ngưỡng này là CHÚ Ý (không vượt rotate_k).", "required": false, "default": 230 },
     "memWarnMb": { "type": "number", "title": "Cảnh báo RAM (MB)", "description": "mem_warn_mb", "required": false, "default": 1500 },

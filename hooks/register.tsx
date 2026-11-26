@@ -36,6 +36,17 @@ const limits = atom({ plugin: 'dai-chi-huy', key: 'limits' } as const, [] as Lim
 
 const DAY_STEPS = [3, 7, 14, 30, 60, 90]
 
+// The engine's operating system (from session.info at start), for the commands that open,
+// stop and resume things. WSL counts as Linux.
+let system: 'windows' | 'macos' | 'linux' = 'windows'
+// Opens a link, a file or a folder with the system's own handler.
+function opener(kind: 'link' | 'file' | 'folder', target: string): string[] {
+  if (system === 'macos') return ['open', target]
+  if (system === 'linux') return ['xdg-open', target]
+  if (kind === 'folder') return ['explorer.exe', target]
+  return ['cmd.exe', '/d', '/c', 'start', '', kind === 'file' ? target.split('/').join(String.fromCharCode(92)) : target]
+}
+
 // ---------- formatting (util.rs) ----------
 const fmtTokens = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1000 ? `${Math.floor(n / 1000)}k` : String(n))
 const fmtMem = (b: number) => (b >= 1024 ** 3 ? `${(b / 1024 ** 3).toFixed(1)} GB` : `${Math.round(b / 1024 ** 2)} MB`)
@@ -369,7 +380,7 @@ async function stopSession($: EngineInterface, id: string) {
     $.ui.toast(s ? t('stopNotIdle', { name: s.name }) : t('stopChanged'))
     return
   }
-  const r = await $.process.run(['taskkill.exe', '/PID', String(s.pid), '/F'])
+  const r = await $.process.run(system === 'windows' ? ['taskkill.exe', '/PID', String(s.pid), '/F'] : ['kill', String(s.pid)])
   if (r.exitCode !== 0) {
     $.ui.toast(t('stopFailed', { name: s.name, err: (r.stderr || r.stdout).trim() }))
     return
@@ -387,6 +398,15 @@ async function stopSession($: EngineInterface, id: string) {
 // session's: a session of the app carries the app's variables (its host session id, its
 // entrypoint), and a claude started with those would register as a child of this session.
 const OPEN_TERMINAL = "exit (Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = 'cmd.exe /k claude --resume ' + $env:DCH_ID; CurrentDirectory = $env:DCH_CWD }).ReturnValue"
+// macOS: Terminal opens the window with a shell of its own, so the same holds. The folder and
+// the id come in as arguments. Linux has no one terminal to ask for: the command is copied.
+const MAC_TERMINAL = ['on run argv', 'tell application "Terminal"', 'activate',
+  'do script "cd " & quoted form of (item 1 of argv) & " && claude --resume " & (item 2 of argv)', 'end tell', 'end run']
+function resumeCommand(s: Session): { argv: string[]; env?: Record<string, string> } | null {
+  if (system === 'macos') return { argv: ['osascript', ...MAC_TERMINAL.flatMap(l => ['-e', l]), s.cwd, s.id] }
+  if (system === 'windows') return { argv: ['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', OPEN_TERMINAL], env: { DCH_ID: s.id, DCH_CWD: s.cwd } }
+  return null
+}
 let selfId = ''
 type Surface = 'terminal' | 'desktop' | 'vscode' | 'mobile'
 async function jump($: EngineInterface, s: Session, surface: Surface) {
@@ -395,7 +415,7 @@ async function jump($: EngineInterface, s: Session, surface: Surface) {
     return
   }
   if (inApp(s)) {
-    const r = await $.process.run(['cmd.exe', '/d', '/c', 'start', '', `claude://claude.ai/epitaxy/${s.host}`])
+    const r = await $.process.run(opener('link', `claude://claude.ai/epitaxy/${s.host}`))
     if (r.exitCode !== 0) $.ui.toast(t('jumpAppFail', { name: s.name }))
     return
   }
@@ -404,8 +424,9 @@ async function jump($: EngineInterface, s: Session, surface: Surface) {
     return
   }
   // the id goes into a command line: only ever a session id
-  const r = /^[0-9a-f-]{36}$/i.test(s.id)
-    ? await $.process.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', OPEN_TERMINAL], { env: { DCH_ID: s.id, DCH_CWD: s.cwd } }).catch(() => ({ exitCode: 1 }))
+  const cmd = /^[0-9a-f-]{36}$/i.test(s.id) ? resumeCommand(s) : null
+  const r = cmd
+    ? await $.process.run(cmd.argv, cmd.env && { env: cmd.env }).catch(() => ({ exitCode: 1 }))
     : { exitCode: 1 }
   if (r.exitCode === 0) {
     $.ui.toast(t('jumpReopened', { name: s.name }))
@@ -443,6 +464,8 @@ export const register: Register = (on, options) => {
     await $.command.register({ name: 'chihuy', description: t('cmdDescription') })
     await update($, days, d => d || cleanupDays)
     selfId = await $.session.id()
+    const os = (await $.session.info().catch(() => undefined))?.platform
+    system = os === 'macos' ? 'macos' : os === 'linux' || os === 'wsl' ? 'linux' : 'windows'
     terminal = (await $.env.get('CLAUDE_CODE_ENTRYPOINT').catch(() => undefined)) === 'cli'
     const home = (await $.env.get('USERPROFILE').catch(() => undefined)) ?? (await $.env.get('HOME').catch(() => undefined)) ?? ''
     dataDir = `${home.split(String.fromCharCode(92)).join('/')}/.claude/dai-chi-huy`
@@ -476,9 +499,11 @@ export const register: Register = (on, options) => {
     return note ? { ...done, context: [...(done.context ?? []), note] } : done
   })
 
-  // The rule: no subagents or workflows, in any session; the main session does it all.
-  on('tool.call', { tool: 'Agent' }, () => ({ deny: t('noAgents') })).catch(() => ({ deny: t('noAgents') }))
-  on('tool.call', { tool: 'Workflow' }, () => ({ deny: t('noAgents') })).catch(() => ({ deny: t('noAgents') }))
+  // The `blockAgents` option: no subagents or workflows, in any session; the main session does it all.
+  if (options.blockAgents === true) {
+    on('tool.call', { tool: 'Agent' }, () => ({ deny: t('noAgents') })).catch(() => ({ deny: t('noAgents') }))
+    on('tool.call', { tool: 'Workflow' }, () => ({ deny: t('noAgents') })).catch(() => ({ deny: t('noAgents') }))
+  }
 
   // A window moved a whole point: redraw the quota bars at once.
   on('session.measure', async ($, e, next) => {
@@ -626,7 +651,7 @@ export const register: Register = (on, options) => {
                     {s.handoff !== '' && (
                       <Box flexDirection="row" columnGap={1} marginTop={1} alignItems="center">
                         <Text dimColor>{t('lastHandoff', { t: fmtAge(Math.round((now - s.rotatedAt) / 1000)) })}</Text>
-                        <Button key={`handoff-${s.id}`} plain dimColor onPress={() => $.process.run(['cmd.exe', '/d', '/c', 'start', '', s.handoff.split('/').join(String.fromCharCode(92))]).then(() => undefined)}>{clip(s.handoff.split('/').slice(-2).join('/'), 60)}</Button>
+                        <Button key={`handoff-${s.id}`} plain dimColor onPress={() => $.process.run(opener('file', s.handoff)).then(() => undefined)}>{clip(s.handoff.split('/').slice(-2).join('/'), 60)}</Button>
                       </Box>
                     )}
                     <Box flexDirection="row" columnGap={1} marginTop={1}>
@@ -744,7 +769,7 @@ export const register: Register = (on, options) => {
                 <Text dimColor>{clip(c.project.replace(/^C--/, ''), 14)}</Text>{' '}
                 {clip(label, Math.max(16, W - 40))}
               </Button>
-              <Button key={`dir-${k}`} plain dimColor onPress={() => $.process.run(['explorer.exe', c.dir]).then(() => undefined)}>📂</Button>
+              <Button key={`dir-${k}`} plain dimColor onPress={() => $.process.run(opener('folder', c.dir)).then(() => undefined)}>📂</Button>
             </Box>
           )
         })}

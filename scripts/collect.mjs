@@ -160,11 +160,21 @@ function findTranscript(id, cwd) {
 }
 function safeList(dir) { try { return fs.readdirSync(dir) } catch { return [] } }
 
-// ---------- processes: RAM + background jobs (one CIM query) ----------
+// ---------- processes: RAM + background jobs (one CIM query on Windows, one ps elsewhere) ----------
+// etime is [[dd-]hh:]mm:ss; comm comes last, as it may hold spaces (a full path on macOS)
+const etimeSecs = e => { const [d, hms] = e.includes('-') ? e.split('-') : ['0', e]; return +d * 86400 + hms.split(':').reduce((s, v) => s * 60 + +v, 0) }
+function psProcesses(map) {
+  const out = execFileSync('ps', ['-A', '-o', 'pid=,ppid=,rss=,etime=,comm='], { encoding: 'utf8', timeout: 20000, maxBuffer: 16 * 1024 * 1024 })
+  for (const l of out.split('\n')) {
+    const m = l.trim().match(/^(\d+)\s+(\d+)\s+(\d+)\s+(\S+)\s+(.+)$/)
+    if (m) map.set(+m[1], { pid: +m[1], ppid: +m[2], mem: +m[3] * 1024, start: now - etimeSecs(m[4]) * 1000, name: path.basename(m[5]) })
+  }
+}
 function processes() {
   const ps = "Get-CimInstance Win32_Process | ForEach-Object { '{0}|{1}|{2}|{3}|{4}' -f $_.ProcessId,$_.ParentProcessId,$_.WorkingSetSize,([DateTimeOffset]$_.CreationDate).ToUnixTimeMilliseconds(),$_.Name }"
   const map = new Map()
   try {
+    if (process.platform !== 'win32') { psProcesses(map); return map }
     const out = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { encoding: 'utf8', windowsHide: true, timeout: 20000, maxBuffer: 16 * 1024 * 1024 })
     for (const l of out.split(/\r?\n/)) {
       const [pid, ppid, mem, start, ...name] = l.split('|')

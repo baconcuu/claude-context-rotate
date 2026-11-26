@@ -12,7 +12,7 @@ test('every language has every text of en.mjs, with the same {placeholders}', as
   }
 })
 
-test('with language en the rule and the band are in English', { options: { language: 'en' } }, async ($, on) => {
+test('with language en the rule and the band are in English', { options: { language: 'en', blockAgents: true } }, async ($, on) => {
   mock.clock(on, { now: 1_800_000_000_000 })
   on('tool.call', () => ({ result: 'ok', text: 'ok' }))
   on('session.usage', () => ({ value: { startedAt: 0, context: { tokens: 1000, window: 1_000_000 }, rateLimits: [] } }))

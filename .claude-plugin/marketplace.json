@@ -1,0 +1,12 @@
+{
+  "name": "claude-context-rotate",
+  "owner": { "name": "baconcuu" },
+  "metadata": { "description": "Đài Chỉ Huy, a context-rotation mod for Claude Code" },
+  "plugins": [
+    {
+      "name": "dai-chi-huy",
+      "source": "./",
+      "description": "Rotates a long chat at 250k through a Markdown work card you can read and edit, instead of a lossy auto-compact. Plus a pane with every session, alerts, the quota bars and transcript cleanup."
+    }
+  ]
+}
