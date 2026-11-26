@@ -10,7 +10,9 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square" alt="MIT license"></a>
 </p>
 
-Every Claude Code call re-reads the whole context, yet auto-compact can wait until 370–600k and then keeps only a lossy summary. Đài Chỉ Huy rotates the chat at 250k instead: the agent writes a 4 KB work card, the mod runs `/clear`, and a fresh chat carries on from the card.
+**Spend ~15% less per Claude Code call.** Every call re-reads the whole context, yet auto-compact can wait until 370–600k and then keeps only a lossy summary. Đài Chỉ Huy rotates the chat at 250k instead: the agent writes a 4 KB work card, the mod runs `/clear`, and a fresh chat carries on from the card.
+
+**You own every handoff.** Each work card is a plain `.md` file in `~/.claude/dai-chi-huy/handoff/`, not a summary hidden in the chat. Read it, edit it, keep it: you always know exactly what carries over.
 
 <img src="docs/showcase.en.png" alt="The pane: every session with its context against the rotation mark, RAM and background jobs, then the rotation log. Beside it, the 5-hour and weekly quota bars." width="880">
 
@@ -21,7 +23,7 @@ Every Claude Code call re-reads the whole context, yet auto-compact can wait unt
   <img src="docs/flow.en.light.png" alt="1. Context hits 250k, or the agent finishes a step near 200k. 2. It writes a work card of at most 4 KB. 3. The mod runs /clear in the same session. 4. A fresh chat starts near 50k and carries on." width="880">
 </picture></p>
 
-## The numbers
+## Real numbers from real sessions
 
 <p><picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/trace.en.dark.png">
@@ -35,7 +37,7 @@ Every Claude Code call re-reads the whole context, yet auto-compact can wait unt
 
 That is why the mod blocks the `Agent` and `Workflow` tools in every session. Background shell commands still run.
 
-## Install
+## Install in a minute
 
 Windows with Node on `PATH`, in the desktop app or the terminal. The interface is in Vietnamese.
 

@@ -10,7 +10,9 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square" alt="Giấy phép MIT"></a>
 </p>
 
-Mỗi lần gọi, Claude Code đọc lại toàn bộ context, mà auto-compact có khi chờ tới 370–600k rồi chỉ giữ lại một bản tóm tắt hay sót chi tiết. Đài Chỉ Huy đổi chat ở 250k: agent viết một phiếu việc 4 KB, mod chạy `/clear`, chat mới đọc phiếu và làm tiếp.
+**Tiết kiệm khoảng 15% chi phí mỗi lần gọi Claude Code.** Mỗi lần gọi, Claude Code đọc lại toàn bộ context, mà auto-compact có khi chờ tới 370–600k rồi chỉ giữ lại một bản tóm tắt hay sót chi tiết. Đài Chỉ Huy đổi chat ở 250k: agent viết một phiếu việc 4 KB, mod chạy `/clear`, chat mới đọc phiếu và làm tiếp.
+
+**Bạn hoàn toàn tự quản lý các file `.md`.** Mỗi phiếu việc là một file Markdown thường trong `~/.claude/dai-chi-huy/handoff/`, không phải bản tóm tắt ẩn trong chat. Mở ra đọc, sửa, giữ lại tuỳ ý: bạn luôn biết chính xác chat sau mang theo những gì.
 
 <img src="docs/showcase.vi.png" alt="Pane Đài Chỉ Huy: mọi phiên với context so với mốc xoay, RAM, job nền, bên dưới là nhật ký tự rotate. Bên cạnh là thanh quota 5 giờ và quota tuần." width="880">
 
@@ -21,7 +23,7 @@ Mỗi lần gọi, Claude Code đọc lại toàn bộ context, mà auto-compact
   <img src="docs/flow.vi.light.png" alt="1. Context tới 250k, hoặc agent xong một bước ở gần 200k. 2. Agent viết phiếu việc tối đa 4 KB. 3. Mod chạy /clear ngay trong phiên. 4. Chat mới bắt đầu ở khoảng 50k và làm tiếp." width="880">
 </picture></p>
 
-## Số liệu
+## Số liệu thật từ phiên thật
 
 <p><picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/trace.vi.dark.png">
@@ -35,7 +37,7 @@ Mỗi lần gọi, Claude Code đọc lại toàn bộ context, mà auto-compact
 
 Vì vậy mod chặn công cụ `Agent` và `Workflow` ở mọi phiên. Lệnh nền vẫn chạy bình thường.
 
-## Cài đặt
+## Cài trong một phút
 
 Cần Windows và Node trên `PATH`; chạy được trong app desktop lẫn terminal. Giao diện tiếng Việt.
 
