@@ -16,22 +16,22 @@ Mỗi lần gọi, Claude Code đọc lại toàn bộ context, mà auto-compact
 
 ## Cách hoạt động
 
-<picture>
+<p><picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/flow.vi.dark.png">
   <img src="docs/flow.vi.light.png" alt="1. Context tới 250k, hoặc agent xong một bước ở gần 200k. 2. Agent viết phiếu việc tối đa 4 KB. 3. Mod chạy /clear ngay trong phiên. 4. Chat mới bắt đầu ở khoảng 50k và làm tiếp." width="880">
-</picture>
+</picture></p>
 
 ## Số liệu
 
-<picture>
+<p><picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/trace.vi.dark.png">
   <img src="docs/trace.vi.light.png" alt="Context mỗi lần gọi qua 1.800 lần gọi của một việc dài. Auto-compact: trung bình 241k, đỉnh 566k. Đài Chỉ Huy: trung bình 176k, đỉnh 286k. Bớt 27% token phải đọc lại." width="880">
-</picture>
+</picture></p>
 
-<picture>
+<p><picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/subagents.vi.dark.png">
   <img src="docs/subagents.vi.light.png" alt="Subagent và một phiên solo có xoay: $10.3 và $5.2 mỗi giờ hoạt động, $83 và $37 trong giờ cao điểm, context p90 592k và 251k, $0.047 và $0.062 mỗi 1k token output." width="880">
-</picture>
+</picture></p>
 
 Vì vậy mod chặn công cụ `Agent` và `Workflow` ở mọi phiên. Lệnh nền vẫn chạy bình thường.
 

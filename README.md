@@ -16,22 +16,22 @@ Every Claude Code call re-reads the whole context, yet auto-compact can wait unt
 
 ## How it works
 
-<picture>
+<p><picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/flow.en.dark.png">
   <img src="docs/flow.en.light.png" alt="1. Context hits 250k, or the agent finishes a step near 200k. 2. It writes a work card of at most 4 KB. 3. The mod runs /clear in the same session. 4. A fresh chat starts near 50k and carries on." width="880">
-</picture>
+</picture></p>
 
 ## The numbers
 
-<picture>
+<p><picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/trace.en.dark.png">
   <img src="docs/trace.en.light.png" alt="Context per call over 1,800 calls of one long task. Auto-compact: average 241k, peak 566k. Đài Chỉ Huy: average 176k, peak 286k. 27% fewer tokens re-read." width="880">
-</picture>
+</picture></p>
 
-<picture>
+<p><picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/subagents.en.dark.png">
   <img src="docs/subagents.en.light.png" alt="Subagents vs one solo session with rotation: $10.3 vs $5.2 per active hour, $83 vs $37 in the busiest hour, 592k vs 251k context per call at p90, $0.047 vs $0.062 per 1k output tokens." width="880">
-</picture>
+</picture></p>
 
 That is why the mod blocks the `Agent` and `Workflow` tools in every session. Background shell commands still run.
 
