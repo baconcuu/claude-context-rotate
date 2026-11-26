@@ -6,9 +6,12 @@ import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
 import { execFileSync } from 'node:child_process'
+import { LOCALES, fill } from '../locales/index.mjs'
 
 const mode = process.argv[2] ?? 'snapshot'
 const raw = JSON.parse(fs.readFileSync(0, 'utf8') || '{}')
+const L = LOCALES[raw.lang] ?? LOCALES.en
+const t = (k, v) => fill(L[k], v)
 const home = process.env.USERPROFILE || os.homedir()
 const cfg = {
   claudeDir: raw.claudeDir || path.join(home, '.claude'),
@@ -63,7 +66,7 @@ const parse = l => { try { return JSON.parse(l) } catch { return null } }
 function summarize(name, input = {}) {
   const s = k => (typeof input[k] === 'string' ? input[k] : '')
   switch (name) {
-    case 'Bash': case 'PowerShell': return (s('description') || one(s('command'))) + (input.run_in_background ? ' [nền]' : '')
+    case 'Bash': case 'PowerShell': return (s('description') || one(s('command'))) + (input.run_in_background ? ' ' + t('bg') : '')
     case 'Read': case 'Write': case 'Edit': case 'MultiEdit': case 'NotebookEdit': return shortPath(s('file_path') || s('notebook_path'), 3)
     case 'Grep': return `“${cap(s('pattern'), 120)}”${s('path') ? ' in ' + shortPath(s('path'), 2) : ''}`
     case 'Glob': return s('pattern')
@@ -283,35 +286,35 @@ function alerts(sessions, d) {
   const a = []
   if (d && d.total > 0) {
     const gb = d.free / 1024 ** 3
-    if (d.free * 20 < d.total || gb < 10) a.push({ sev: 0, who: 'ổ đĩa', text: `chỉ còn trống ${fmtMem(d.free)} — vào tab 🧹 Dọn dẹp xoá hội thoại cũ` })
-    else if (d.free * 10 < d.total || gb < 30) a.push({ sev: 1, who: 'ổ đĩa', text: `còn trống ${fmtMem(d.free)} (< 10%) — tab 🧹 Dọn dẹp` })
+    if (d.free * 20 < d.total || gb < 10) a.push({ sev: 0, who: t('disk'), text: t('diskCrit', { free: fmtMem(d.free) }) })
+    else if (d.free * 10 < d.total || gb < 30) a.push({ sev: 1, who: t('disk'), text: t('diskLow', { free: fmtMem(d.free) }) })
   }
   for (const s of sessions) {
     const who = s.name, sid = s.id
     if (s.status === 'stopped') continue
-    if (!s.alive) { a.push({ sev: 1, sid, who, text: `phiên đã chết nhưng còn đăng ký (pid ${s.pid ?? 0})` }); continue }
-    if (s.modDead) a.push({ sev: 0, sid, who, text: 'mod Đài Chỉ Huy không chạy trong phiên này: sẽ không tự rotate. Lúc phiên rảnh: ⏻ tắt rồi gửi một tin để mod nạp lại' })
+    if (!s.alive) { a.push({ sev: 1, sid, who, text: t('aDead', { pid: s.pid ?? 0 }) }); continue }
+    if (s.modDead) a.push({ sev: 0, sid, who, text: t('aModDead') })
     const { rotate, warn } = limitsOf(s.id)
-    if (s.ctx >= rotate) a.push({ sev: 0, sid, who, text: `context ${fmtTokens(s.ctx)} ≥ ngưỡng rotate ${fmtTokens(rotate)}` })
-    else if (s.ctx >= warn) a.push({ sev: 1, sid, who, text: `context ${fmtTokens(s.ctx)} — sắp rotate (cảnh báo ${fmtTokens(warn)})` })
-    if (s.mem >= cfg.memWarn) a.push({ sev: 1, sid, who, text: `RAM ${fmtMem(s.mem)} — nên /clear hoặc rotate` })
+    if (s.ctx >= rotate) a.push({ sev: 0, sid, who, text: t('aCtxOver', { ctx: fmtTokens(s.ctx), rotate: fmtTokens(rotate) }) })
+    else if (s.ctx >= warn) a.push({ sev: 1, sid, who, text: t('aCtxNear', { ctx: fmtTokens(s.ctx), warn: fmtTokens(warn) }) })
+    if (s.mem >= cfg.memWarn) a.push({ sev: 1, sid, who, text: t('aRam', { mem: fmtMem(s.mem) }) })
     if (s.running) {
       const mins = Math.floor((now - s.running.ts) / 60_000)
-      if (mins >= 20) a.push({ sev: 2, sid, who, text: `tool chạy lâu ${mins}′: ${toolLabel(s.running.tool)} ${cap(s.running.text, 80)}` })
+      if (mins >= 20) a.push({ sev: 2, sid, who, text: t('aLongTool', { mins, tool: toolLabel(s.running.tool), text: cap(s.running.text, 80) }) })
     } else if (s.status === 'busy' && s.lastTs) {
       const mins = Math.floor((now - s.lastTs) / 60_000)
-      if (mins >= cfg.quietBusyMin) a.push({ sev: 1, sid, who, text: `báo bận nhưng im lặng ${mins}′ (kẹt? chờ quyền?)` })
+      if (mins >= cfg.quietBusyMin) a.push({ sev: 1, sid, who, text: t('aQuiet', { mins }) })
     }
-    if (s.errors30 >= 3) a.push({ sev: 1, sid, who, text: `${s.errors30} lỗi tool trong 30′ gần nhất` })
+    if (s.errors30 >= 3) a.push({ sev: 1, sid, who, text: t('aErrors', { n: s.errors30 }) })
     if (s.status === 'idle' && s.statusSince) {
       const mins = Math.floor((now - s.statusSince) / 60_000)
-      if (mins >= 60) a.push({ sev: 2, sid, who, text: `rảnh ${fmtAge(mins * 60)} — có thể giao việc` })
+      if (mins >= 60) a.push({ sev: 2, sid, who, text: t('aIdle', { t: fmtAge(mins * 60) }) })
     }
   }
   // files edited by two or more live sessions in the last hour
   const byFile = {}
   for (const s of sessions) for (const [f, t] of Object.entries(s.files)) if (now - t < 3600_000) (byFile[f] ??= new Set()).add(s.name)
-  for (const [f, who] of Object.entries(byFile).sort()) if (who.size > 1) a.push({ sev: 1, who: [...who].sort().join(' + '), text: `cùng sửa 1 file trong 60′: ${shortPath(f, 3)}` })
+  for (const [f, who] of Object.entries(byFile).sort()) if (who.size > 1) a.push({ sev: 1, who: [...who].sort().join(' + '), text: t('aSameFile', { path: shortPath(f, 3) }) })
   return a.sort((x, y) => x.sev - y.sev || x.who.localeCompare(y.who))
 }
 
@@ -384,7 +387,7 @@ function scan() {
   const { list, names } = convs()
   const proj = path.join(cfg.claudeDir, 'projects')
   const rows = list.map(c => {
-    const { title, name } = c.tr ? titleOf(c.tr) : { title: '(chỉ còn thư mục phụ: subagents / tool-results)', name: '' }
+    const { title, name } = c.tr ? titleOf(c.tr) : { title: t('subOnly'), name: '' }
     return { id: c.id, project: c.project, dir: path.join(proj, c.project), bytes: c.files.reduce((n, p) => n + sizeOf(p), 0), mtime: c.mtime, live: c.live, recent: c.recent, title, name: names[c.id] || name }
   }).sort((a, b) => b.bytes - a.bytes)
   let period = null
@@ -404,8 +407,8 @@ function del() {
   for (const c of list) if (want.has(`${c.project}/${c.id}`) && c.tr) titles[c.id] = titleOf(c.tr).title
   for (const c of list) {
     if (!want.has(`${c.project}/${c.id}`)) continue
-    if (live.has(c.id)) { errs.push(`${c.id} đang chạy — bỏ qua`); continue }
-    if (mtimeOf(c.files[0]) > horizon) { errs.push(`${c.id} vừa được ghi — bỏ qua`); continue }
+    if (live.has(c.id)) { errs.push(t('delRunning', { id: c.id })); continue }
+    if (mtimeOf(c.files[0]) > horizon) { errs.push(t('delRecent', { id: c.id })); continue }
     const bytes = c.files.reduce((s, p) => s + sizeOf(p), 0)
     let ok = true
     for (const p of c.files) {

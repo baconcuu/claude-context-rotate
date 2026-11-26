@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 // The rule: no subagents or workflows in any session. Every other tool runs.
-test('Agent and Workflow calls are refused with the rule; other tools run', async ($, on) => {
+test('Agent and Workflow calls are refused with the rule; other tools run', { options: { language: 'vi' } }, async ($, on) => {
   const ran: string[] = []
   on('tool.call', (_, e) => { ran.push(e.tool); return { result: 'ok', text: 'ok' } })
   on('session.usage', () => ({ value: { startedAt: 0, context: { tokens: 1000, window: 1_000_000 }, rateLimits: [] } }))

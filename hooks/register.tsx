@@ -1,12 +1,24 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
+import { LOCALES, fill, langOf } from '../locales/index.mjs'
 import type { Alert, CleanSort, Conv, Limit, Scan, Session, SessionSettings, Snapshot, Tab } from '../types'
 
 // Đài Chỉ Huy as a band above the prompt + a pane. The data side is scripts/collect.mjs
 // (sessions, alerts, cleanup scan, safe delete).
 const PANE = 'dai-chi-huy'
-const TITLE = 'Đài Chỉ Huy'
+
+// Every text a person or the agent reads comes from locales/<lang>.mjs, set from the
+// `language` option when the module loads.
+let lang = 'en'
+const t = (key: string, vars?: Record<string, string | number>) => fill(LOCALES[lang]?.[key] ?? key, vars)
+const systemLocale = () => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().locale
+  } catch {
+    return ''
+  }
+}
 
 const tab = atom({ plugin: 'dai-chi-huy', key: 'tab' } as const, 'team' as Tab)
 const snapshot = atom({ plugin: 'dai-chi-huy', key: 'snapshot' } as const, null, { shape: 'snap-2' })
@@ -40,20 +52,20 @@ const clip = (s: string, n: number) => (s.length > n ? s.slice(0, Math.max(1, n 
 const modelShort = (m: string) => m.replace(/^claude-/, '').replace(/-\d{8}$/, '')
 
 function statusOf(s: Session): { icon: string; label: string; color: string } {
-  if (s.status === 'stopped') return { icon: '⏻', label: 'ĐÃ TẮT', color: 'inactive' }
-  if (!s.alive) return { icon: '✕', label: 'CHẾT', color: 'error' }
+  if (s.status === 'stopped') return { icon: '⏻', label: t('stStopped'), color: 'inactive' }
+  if (!s.alive) return { icon: '✕', label: t('stDead'), color: 'error' }
   switch (s.status) {
-    case 'busy': return { icon: '●', label: 'BẬN', color: 'success' }
-    case 'shell': return { icon: '●', label: 'JOB', color: 'suggestion' }
-    case 'waiting': return { icon: '●', label: 'CHỜ', color: 'warning' }
-    case 'idle': return { icon: '○', label: 'RẢNH', color: 'inactive' }
+    case 'busy': return { icon: '●', label: t('stBusy'), color: 'success' }
+    case 'shell': return { icon: '●', label: t('stShell'), color: 'suggestion' }
+    case 'waiting': return { icon: '●', label: t('stWaiting'), color: 'warning' }
+    case 'idle': return { icon: '○', label: t('stIdle'), color: 'inactive' }
     default: return { icon: '○', label: s.status.toUpperCase(), color: 'subtle' }
   }
 }
 // ---------- quota bars (first row of the band above the chat box) ----------
 const QUOTA = [
-  { kind: 'five_hour', label: 'Quota 5h' },
-  { kind: 'seven_day', label: 'Quota tuần' },
+  { kind: 'five_hour', label: 'quota5h' },
+  { kind: 'seven_day', label: 'quotaWeek' },
 ] as const
 const leftOf = (l: Limit, now: number) => (l.resetsAt ? Math.round((Date.parse(l.resetsAt) - now) / 1000) : -1)
 // green under 70 %, yellow from 70, red from 90
@@ -117,40 +129,32 @@ function stamp(ms: number) {
 
 // A work card, not a history: the new chat must start the next step in 1-2 minutes,
 // so the card says exactly what to read. History lives in the project's own PROGRESS/notes.
-const HANDOFF_SECTIONS = [
-  'Bàn giao là PHIẾU VIỆC cho bước tiếp theo, tối đa ~4 KB, để agent mới (không có lịch sử chat) bắt tay làm ngay trong 1–2 phút:',
-  '1. Việc tiếp: bước tiếp theo cụ thể (mục tiêu, file sẽ tạo/sửa, xong khi nào: lệnh kiểm tra + tiêu chí đạt). Đang chờ người dùng thì ghi rõ "CHỜ NGƯỜI DÙNG" và câu đang hỏi.',
-  '2. Đọc gì: đúng những file / hàm / dòng (offset–limit) bước đó cần, file tóm tắt API nếu có. Ghi rõ "Không cần đọc": những gì đã nắm qua phiếu này (bàn giao cũ, mã nguồn không liên quan).',
-  '3. Trạng thái: đã xong gì ở bước trước (1–3 dòng), việc đang dở, tiến trình nền đang chạy (PID, lệnh, log).',
-  '4. Lưu ý: luật người dùng còn hiệu lực và cạm bẫy liên quan đến bước này, đường dẫn đầy đủ. Không chép lại lịch sử các đời trước (đã có trong PROGRESS của dự án).',
-]
+const handoffSections = () => ['cardIntro', 'cardNext', 'cardRead', 'cardState', 'cardNotes'].map(k => t(k))
 
 const handoffPrompt = (file: string, ctx: number, k: number) => [
-  `[Đài Chỉ Huy · tự rotate] Context phiên này đã tới ${fmtTokens(ctx)}, chạm mốc ${k}k.`,
-  `Trước khi mở cuộc chat mới, hãy viết bản bàn giao vào file \`${file}\` (tạo thư mục nếu chưa có). Chỉ viết file này, không làm việc khác trong lượt này.`,
-  ...HANDOFF_SECTIONS,
-  'Viết xong thì trả lời đúng một dòng: ĐÃ VIẾT BÀN GIAO.',
+  t('rotateHead', { ctx: fmtTokens(ctx), k }),
+  t('rotateWrite', { file }),
+  ...handoffSections(),
+  t('rotateDone'),
 ].join('\n')
 
 // read by the model after a tool's result, inside a long turn
 const midTurnNote = (file: string, ctx: number, k: number) => [
-  `[Đài Chỉ Huy · tự rotate] Context phiên này đã tới ${fmtTokens(ctx)} ngay giữa lượt, quá mốc ${k}k.`,
-  'Đưa việc đang làm tới một điểm dừng an toàn: không bỏ dở file đang sửa; build/test đang chạy thì chờ xong hoặc ghi lại trạng thái; tiến trình nền cần giữ thì để chạy và ghi lại PID, lệnh.',
-  `Rồi viết bản bàn giao vào file \`${file}\` (tạo thư mục nếu chưa có).`,
-  ...HANDOFF_SECTIONS,
-  'Viết xong thì kết thúc lượt bằng đúng một dòng: ĐÃ VIẾT BÀN GIAO. Không bắt đầu việc mới: cuộc chat mới sẽ tự mở, đọc file đó và làm tiếp.',
+  t('midHead', { ctx: fmtTokens(ctx), k }),
+  t('midStop'),
+  t('midWrite', { file }),
+  ...handoffSections(),
+  t('midDone'),
 ].join('\n')
 
+// The last line (selfRotate) lets the model pick its own rotation point: rotating mid-step costs the
+// next chat a full re-read, so after a step it may hand over by itself; the threshold is only the safety net.
 const resumePrompt = (name: string, life: number, file: string, why: string) => [
-  `[Đài Chỉ Huy · tự rotate] Đây là cuộc chat tiếp nối của phiên "${name}" (đời ${life}), mở tự động sau khi cuộc chat trước ${why}.`,
-  `Đọc bản bàn giao \`${file}\` rồi làm tiếp từ mục "Việc tiếp". Chỉ đọc những gì mục "Đọc gì" liệt kê; không đọc bàn giao cũ.`,
-  'Nếu bàn giao ghi CHỜ NGƯỜI DÙNG, hoặc không còn việc dở, chỉ tóm tắt ngắn tình hình và chờ người dùng.',
-  SELF_ROTATE,
+  t('resumeHead', { name, life, why }),
+  t('resumeRead', { file }),
+  t('resumeWait'),
+  t('selfRotate'),
 ].join('\n')
-
-// The model picks its own rotation point: rotating mid-step costs the next chat a
-// full re-read, so after a step it may hand over by itself; the threshold is only the safety net.
-const SELF_ROTATE = `Tự đổi chat: khi vừa XONG một bước và context đã ≥ ~200k (hoặc bước sau cần đọc nhiều thứ khác hẳn), ghi phiếu việc cho bước sau (theo mẫu: Việc tiếp / Đọc gì / Trạng thái / Lưu ý) vào \`~/.claude/dai-chi-huy/request/$CLAUDE_CODE_SESSION_ID.md\` rồi kết thúc lượt bằng một dòng; hết lượt mod tự mở chat mới làm tiếp (cần context ≥ 120k). Đừng chờ tới mốc rotate cứng giữa chừng một bước.`
 
 // Past this session's threshold with tự rotate on: moves to `writing` and returns the request.
 async function startRotate($: EngineInterface, mid: boolean) {
@@ -167,22 +171,21 @@ async function startRotate($: EngineInterface, mid: boolean) {
   const name = snap?.sessions.find(s => s.id === id)?.name ?? st.name ?? id.slice(0, 8)
   const now = await $.clock.now()
   const file = `${dataDir}/handoff/${slug(name)}/${stamp(now)}-${id.slice(0, 8)}.md`
-  phase = { kind: 'writing', file, since: now, k, ctx, name, turns: 0, mid, why: `chạm mốc ${k}k` }
-  $.ui.toast(`Context ${fmtTokens(ctx)} chạm mốc ${k}k: agent ${mid ? 'dừng ở điểm an toàn rồi ' : ''}viết bàn giao, xong sẽ tự mở cuộc chat mới.`)
+  phase = { kind: 'writing', file, since: now, k, ctx, name, turns: 0, mid, why: t('whyMark', { k }) }
+  $.ui.toast(t(mid ? 'toastRotateMid' : 'toastRotate', { ctx: fmtTokens(ctx), k }))
   return (mid ? midTurnNote : handoffPrompt)(file, ctx, k)
 }
 
 // After the person presses Stop the engine drops a plugin's prompts and refuses its commands
-// ("a Stop stands") until the person sends one: then nothing waits, and the next turn end retries.
-const BLOCKED = 'Chưa rotate được: Claude Code đang chặn mod tự gửi tin (thường do bạn vừa bấm dừng). Gửi một tin bất kỳ, hết lượt đó mod sẽ thử lại.'
-
+// ("a Stop stands") until the person sends one: then nothing waits, and the next turn end retries
+// (the `blocked` toast).
 async function checkRotate($: EngineInterface) {
   const text = await startRotate($, false)
   if (!text) return
   const sent = await $.prompt.submit({ text }).catch((err: unknown) => ({ drop: String(err) }))
   if (sent.drop !== undefined) {
     phase = { kind: 'idle' }
-    $.ui.toast(BLOCKED)
+    $.ui.toast(t('blocked'))
   }
 }
 
@@ -204,14 +207,14 @@ async function afterHandoff($: EngineInterface, isAborted: boolean) {
   phase = { kind: 'idle' }
   if (isAborted || !written) {
     skipBelow = p.ctx + 30_000
-    $.ui.toast(isAborted ? 'Đã dừng tự rotate (lượt viết bàn giao bị ngắt).' : 'Agent chưa viết file bàn giao: chưa rotate, sẽ thử lại khi context tăng thêm 30k.')
+    $.ui.toast(t(isAborted ? 'toastAborted' : 'toastNoFile'))
     return
   }
   const oldId = await $.session.id()
   const st = await readSettings($, oldId)
   const cleared = await $.command.run({ command: 'clear' }).then(() => true, () => false)
   if (!cleared) {
-    $.ui.toast(BLOCKED)
+    $.ui.toast(t('blocked'))
     return
   }
   const newId = await $.session.id()
@@ -222,14 +225,14 @@ async function afterHandoff($: EngineInterface, isAborted: boolean) {
   await writeSettings($, newId, { ...st, name: p.name, life, handoff: p.file, rotatedAt: now, from: oldId })
   const logPath = `${dataDir}/rotate.log`
   const old = await $.fs.read(logPath).catch(() => '')
-  const line = `${new Date(now).toLocaleString('sv-SE').slice(0, 16)} | ${p.name} | đời ${life - 1} → ${life} | ${fmtTokens(p.ctx)} · ${p.why} | ${p.file}`
+  const line = `${new Date(now).toLocaleString('sv-SE').slice(0, 16)} | ${p.name} | ${t('logLife', { from: life - 1, to: life })} | ${fmtTokens(p.ctx)} · ${p.why} | ${p.file}`
   await $.fs.write(logPath, `${old}${line}\n`)
   const resume = resumePrompt(p.name, life, p.file, p.why)
   const sent = await $.prompt.submit({ text: resume }).catch((err: unknown) => ({ drop: String(err) }))
   if (sent.drop !== undefined) {
     // the new chat is open but empty: leave the resume request in the prompt box, one Enter away
     await $.prompt.fill({ text: resume }).catch(() => undefined)
-    $.ui.toast('Đã mở cuộc chat mới; Claude Code chưa cho mod tự gửi lời nhắc: bấm Enter để gửi lời nhắc đọc bàn giao.')
+    $.ui.toast(t('toastPressEnter'))
   }
   await refresh($)
 }
@@ -263,7 +266,7 @@ async function takeRequest($: EngineInterface): Promise<boolean> {
   if (st.auto === false) return false
   const ctx = (await $.session.usage()).context.tokens ?? 0
   if (ctx < REQUEST_MIN_K * 1000) {
-    $.ui.toast(`Không đổi chat: context mới ${fmtTokens(ctx)}, dưới ${REQUEST_MIN_K}k.`)
+    $.ui.toast(t('toastSmall', { ctx: fmtTokens(ctx), min: REQUEST_MIN_K }))
     return false
   }
   const snap = await read($, snapshot)
@@ -271,17 +274,15 @@ async function takeRequest($: EngineInterface): Promise<boolean> {
   const now = await $.clock.now()
   const file = `${dataDir}/handoff/${slug(name)}/${stamp(now)}-${id.slice(0, 8)}.md`
   await $.fs.write(file, text)
-  phase = { kind: 'writing', file, since: now, k: st.rotateK ?? cfg.rotateK, ctx, name, turns: 0, mid: false, why: `tự đổi chat ở ${fmtTokens(ctx)}` }
+  phase = { kind: 'writing', file, since: now, k: st.rotateK ?? cfg.rotateK, ctx, name, turns: 0, mid: false, why: t('whySelf', { ctx: fmtTokens(ctx) }) }
   await afterHandoff($, false)
   return true
 }
 
-const NO_AGENTS = 'Đài Chỉ Huy chặn subagent/agent (Agent, Workflow). Tự làm hết trong phiên chính; việc chạy lâu thì dùng lệnh nền (run_in_background).'
-
 const SEV = [
-  { label: 'NGUY CẤP', color: 'error' },
-  { label: 'CHÚ Ý', color: 'warning' },
-  { label: 'THÔNG TIN', color: 'suggestion' },
+  { label: 'sevCrit', color: 'error' },
+  { label: 'sevWarn', color: 'warning' },
+  { label: 'sevInfo', color: 'suggestion' },
 ] as const
 
 type Cfg = { rotateK: number; warnK: number; memWarnMb: number; quietBusyMin: number; protectHours: number }
@@ -294,7 +295,7 @@ const errText = (err: unknown) => String((err as Error)?.message ?? err)
 async function collect($: EngineInterface, mode: 'snapshot' | 'scan' | 'delete', extra: object = {}) {
   const script = `${$.plugin.root}/scripts/collect.mjs`
   const r = await $.process.run(['node', script, mode], {
-    stdin: JSON.stringify({ ...cfg, dataDir, ...extra }),
+    stdin: JSON.stringify({ ...cfg, dataDir, lang, ...extra }),
     timeoutMs: mode === 'snapshot' ? 30_000 : 300_000,
   })
   if (r.exitCode !== 0) throw new Error(r.stderr.trim().split(/\r?\n/).at(-1) || `collect ${mode} exit ${r.exitCode}`)
@@ -309,9 +310,9 @@ async function refresh($: EngineInterface) {
     await update($, snapshot, () => snap)
     const crit = snap.alerts.filter(a => a.sev === 0).length
     const warn = snap.alerts.filter(a => a.sev === 1).length
-    $.ui.status(!terminal && crit + warn > 0 ?`Đài Chỉ Huy ⚠ ${crit} nguy cấp · ${warn} chú ý` : undefined)
+    $.ui.status(!terminal && crit + warn > 0 ? t('statusLine', { crit, warn }) : undefined)
   } catch (err) {
-    await update($, note, () => `Lỗi đọc dữ liệu: ${errText(err)}`)
+    await update($, note, () => t('errRead', { err: errText(err) }))
   } finally {
     polling = false
     lastPoll = await $.clock.now()
@@ -319,27 +320,31 @@ async function refresh($: EngineInterface) {
 }
 
 async function rescan($: EngineInterface) {
-  await update($, note, () => 'Đang quét ~/.claude/projects…')
+  await update($, note, () => t('scanning'))
   try {
     const s: Scan = await collect($, 'scan')
     await update($, scan, () => s)
     await update($, picked, list => list.filter(k => s.convs.some(c => `${c.project}/${c.id}` === k)))
     await update($, note, () => '')
   } catch (err) {
-    await update($, note, () => `Quét lỗi: ${errText(err)}`)
+    await update($, note, () => t('errScan', { err: errText(err) }))
   }
 }
 
 async function deletePicked($: EngineInterface) {
   const ids = await read($, picked)
   await update($, confirm, () => false)
-  await update($, note, () => `Đang xoá ${ids.length} hội thoại…`)
+  await update($, note, () => t('deleting', { n: ids.length }))
   try {
     const r = await collect($, 'delete', { ids })
     await update($, picked, () => [])
-    await update($, note, () => `Đã xoá ${r.deleted} hội thoại, lấy lại ${fmtMem(r.freed)}.${r.errors.length ? ' Bỏ qua: ' + r.errors.join('; ') : ''} Log: ${r.log}`)
+    await update($, note, () => [
+      t('deleted', { n: r.deleted, size: fmtMem(r.freed) }),
+      r.errors.length ? t('skipped', { list: r.errors.join('; ') }) : '',
+      t('logAt', { path: r.log }),
+    ].filter(Boolean).join(' '))
   } catch (err) {
-    await update($, note, () => `Xoá lỗi: ${errText(err)}`)
+    await update($, note, () => t('errDelete', { err: errText(err) }))
   }
   await rescan($)
   await refresh($)
@@ -361,16 +366,16 @@ async function stopSession($: EngineInterface, id: string) {
   await refresh($)
   const s = (await read($, snapshot))?.sessions.find(x => x.id === id)
   if (!s || !before || s.pid !== before.pid || !canStop(s)) {
-    $.ui.toast(`Không tắt: ${s ? `${s.name} không còn rảnh` : 'phiên đã đổi'}.`)
+    $.ui.toast(s ? t('stopNotIdle', { name: s.name }) : t('stopChanged'))
     return
   }
   const r = await $.process.run(['taskkill.exe', '/PID', String(s.pid), '/F'])
   if (r.exitCode !== 0) {
-    $.ui.toast(`Không tắt được ${s.name}: ${(r.stderr || r.stdout).trim()}`)
+    $.ui.toast(t('stopFailed', { name: s.name, err: (r.stderr || r.stdout).trim() }))
     return
   }
   await writeSettings($, s.id, { stoppedPid: s.pid })
-  $.ui.toast(`Đã tắt ${s.name}, lấy lại ~${fmtMem(s.mem)}. ${inApp(s) ? 'Gửi tin vào phiên đó là app mở lại.' : 'Bấm tên phiên để mở lại trong cửa sổ terminal mới.'}`)
+  $.ui.toast(`${t('stopped', { name: s.name, mem: fmtMem(s.mem) })} ${t(inApp(s) ? 'stoppedApp' : 'stoppedTerm')}`)
   await refresh($)
 }
 
@@ -386,16 +391,16 @@ let selfId = ''
 type Surface = 'terminal' | 'desktop' | 'vscode' | 'mobile'
 async function jump($: EngineInterface, s: Session, surface: Surface) {
   if (s.id === selfId) {
-    $.ui.toast('Đây là phiên bạn đang mở.')
+    $.ui.toast(t('jumpSelf'))
     return
   }
   if (inApp(s)) {
     const r = await $.process.run(['cmd.exe', '/d', '/c', 'start', '', `claude://claude.ai/epitaxy/${s.host}`])
-    if (r.exitCode !== 0) $.ui.toast(`Không mở được phiên ${s.name}.`)
+    if (r.exitCode !== 0) $.ui.toast(t('jumpAppFail', { name: s.name }))
     return
   }
   if (s.alive) {
-    $.ui.toast(`${s.name} đang mở ở một cửa sổ terminal khác (pid ${s.pid}).`)
+    $.ui.toast(t('jumpOtherWindow', { name: s.name, pid: s.pid }))
     return
   }
   // the id goes into a command line: only ever a session id
@@ -403,11 +408,11 @@ async function jump($: EngineInterface, s: Session, surface: Surface) {
     ? await $.process.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', OPEN_TERMINAL], { env: { DCH_ID: s.id, DCH_CWD: s.cwd } }).catch(() => ({ exitCode: 1 }))
     : { exitCode: 1 }
   if (r.exitCode === 0) {
-    $.ui.toast(`Đã mở lại ${s.name} trong một cửa sổ terminal mới.`)
+    $.ui.toast(t('jumpReopened', { name: s.name }))
     return
   }
   await $.ui.copy({ text: `claude --resume ${s.id}`, surface })
-  $.ui.toast(`Không mở được cửa sổ terminal cho ${s.name}: đã copy lệnh claude --resume.`)
+  $.ui.toast(t('jumpCopied', { name: s.name }))
 }
 
 async function readLimits($: EngineInterface) {
@@ -431,10 +436,11 @@ export const register: Register = (on, options) => {
     protectHours: Math.max(1, num('cleanupProtectHours', 24)),
   }
   cleanupDays = Math.max(1, num('cleanupDays', 7))
+  lang = langOf(options.language, systemLocale())
 
   on('session.start', async ($, e, next) => {
     const started = await next(e)
-    await $.command.register({ name: 'chihuy', description: 'Mở pane Đài Chỉ Huy: đội hình phiên, cảnh báo, dọn dẹp hội thoại cũ' })
+    await $.command.register({ name: 'chihuy', description: t('cmdDescription') })
     await update($, days, d => d || cleanupDays)
     selfId = await $.session.id()
     terminal = (await $.env.get('CLAUDE_CODE_ENTRYPOINT').catch(() => undefined)) === 'cli'
@@ -444,7 +450,7 @@ export const register: Register = (on, options) => {
     // every 10 s while the pane is drawn (as the terminal app refreshes), else once a minute for the band and status line
     $.clock.every(10_000, () => void poll($))
     void refresh($)
-    void $.ui.open({ id: PANE, title: TITLE })
+    void $.ui.open({ id: PANE, title: t('title') })
     return started
   })
 
@@ -471,8 +477,8 @@ export const register: Register = (on, options) => {
   })
 
   // The rule: no subagents or workflows, in any session; the main session does it all.
-  on('tool.call', { tool: 'Agent' }, () => ({ deny: NO_AGENTS })).catch(() => ({ deny: NO_AGENTS }))
-  on('tool.call', { tool: 'Workflow' }, () => ({ deny: NO_AGENTS })).catch(() => ({ deny: NO_AGENTS }))
+  on('tool.call', { tool: 'Agent' }, () => ({ deny: t('noAgents') })).catch(() => ({ deny: t('noAgents') }))
+  on('tool.call', { tool: 'Workflow' }, () => ({ deny: t('noAgents') })).catch(() => ({ deny: t('noAgents') }))
 
   // A window moved a whole point: redraw the quota bars at once.
   on('session.measure', async ($, e, next) => {
@@ -493,13 +499,13 @@ export const register: Register = (on, options) => {
       <Box flexDirection="row" flexWrap="wrap" columnGap={3}>
         {QUOTA.map(q => {
           const l = lims.find(v => v.kind === q.kind)
-          if (!l) return <Text dimColor>{q.label} {'·'.repeat(W)} chờ lượt chat đầu tiên</Text>
+          if (!l) return <Text dimColor>{t(q.label)} {'·'.repeat(W)} {t('quotaWaiting')}</Text>
           const color = quotaColor(l.percentUsed)
           const left = leftOf(l, now)
           return (
             <Text>
-              <Text bold>{q.label}</Text> <Text color={color}>{bar(l.percentUsed / 100, W)}</Text> <Text color={color} bold>{l.percentUsed}%</Text>
-              <Text dimColor>{left > 0 ? ` · reset sau ${fmtAge(left)}` : ''}</Text>
+              <Text bold>{t(q.label)}</Text> <Text color={color}>{bar(l.percentUsed / 100, W)}</Text> <Text color={color} bold>{l.percentUsed}%</Text>
+              <Text dimColor>{left > 0 ? ` · ${t('quotaReset', { t: fmtAge(left) })}` : ''}</Text>
             </Text>
           )
         })}
@@ -509,15 +515,15 @@ export const register: Register = (on, options) => {
   })
 
   on('command.run', { command: 'chihuy' }, async $ => {
-    await $.ui.open({ id: PANE, title: TITLE })
+    await $.ui.open({ id: PANE, title: t('title') })
     void refresh($)
-    return { text: 'Đã mở pane Đài Chỉ Huy.' }
+    return { text: t('cmdOpened') }
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Text, Button } = $.ui.resolve(e)
     const cols = Math.max(30, e.props.bodyColumns ?? 60)
-    const t = await read($, tab)
+    const tb = await read($, tab)
     const snap = await read($, snapshot)
     const msg = await read($, note)
     const now = await $.clock.now()
@@ -536,29 +542,29 @@ export const register: Register = (on, options) => {
     const top = (
       <Box flexDirection="column" marginBottom={1}>
         <Box flexDirection="row" flexWrap="wrap" columnGap={2}>
-          <Text color="success">● {count(s => s.alive && s.status === 'busy')} bận</Text>
-          <Text color="suggestion">● {count(s => s.alive && s.status === 'shell')} job</Text>
-          <Text color="warning">● {count(s => s.alive && s.status === 'waiting')} chờ</Text>
-          <Text color="inactive">○ {count(s => s.alive && s.status === 'idle')} rảnh</Text>
-          {count(s => s.status === 'stopped') > 0 && <Text color="inactive">⏻ {count(s => s.status === 'stopped')} đã tắt</Text>}
-          {count(s => !s.alive && s.status !== 'stopped') > 0 && <Text color="error">✕ {count(s => !s.alive && s.status !== 'stopped')} chết</Text>}
-          {snap?.disk && <Text dimColor>💽 trống {fmtMem(snap.disk.free)} / {fmtMem(snap.disk.total)}</Text>}
-          <Text dimColor>{snap ? `cập nhật ${fmtAge(Math.round((now - snap.updated) / 1000))} trước` : 'đang đọc…'}</Text>
+          <Text color="success">● {t('nBusy', { n: count(s => s.alive && s.status === 'busy') })}</Text>
+          <Text color="suggestion">● {t('nJob', { n: count(s => s.alive && s.status === 'shell') })}</Text>
+          <Text color="warning">● {t('nWaiting', { n: count(s => s.alive && s.status === 'waiting') })}</Text>
+          <Text color="inactive">○ {t('nIdle', { n: count(s => s.alive && s.status === 'idle') })}</Text>
+          {count(s => s.status === 'stopped') > 0 && <Text color="inactive">⏻ {t('nStopped', { n: count(s => s.status === 'stopped') })}</Text>}
+          {count(s => !s.alive && s.status !== 'stopped') > 0 && <Text color="error">✕ {t('nDead', { n: count(s => !s.alive && s.status !== 'stopped') })}</Text>}
+          {snap?.disk && <Text dimColor>💽 {t('diskFree', { free: fmtMem(snap.disk.free), total: fmtMem(snap.disk.total) })}</Text>}
+          <Text dimColor>{snap ? t('updatedAgo', { t: fmtAge(Math.round((now - snap.updated) / 1000)) }) : t('reading')}</Text>
         </Box>
         <Box flexDirection="row" columnGap={1} marginTop={1}>
-          <Button key="tab-team" variant={t === 'team' ? 'primary' : 'secondary'} onPress={setTab('team')}>Đội hình</Button>
-          <Button key="tab-alerts" variant={t === 'alerts' ? 'primary' : 'secondary'} onPress={setTab('alerts')}>
-            {`Cảnh báo${alerts.length ? ` (${alerts.length})` : ''}${nCrit ? ' ⚠' : ''}`}
+          <Button key="tab-team" variant={tb === 'team' ? 'primary' : 'secondary'} onPress={setTab('team')}>{t('tabTeam')}</Button>
+          <Button key="tab-alerts" variant={tb === 'alerts' ? 'primary' : 'secondary'} onPress={setTab('alerts')}>
+            {`${t('tabAlerts')}${alerts.length ? ` (${alerts.length})` : ''}${nCrit ? ' ⚠' : ''}`}
           </Button>
-          <Button key="tab-clean" variant={t === 'clean' ? 'primary' : 'secondary'} onPress={setTab('clean')}>🧹 Dọn dẹp</Button>
-          <Button key="refresh" dimColor onPress={async () => { await refresh($); if (t === 'clean') await rescan($) }}>Làm mới</Button>
+          <Button key="tab-clean" variant={tb === 'clean' ? 'primary' : 'secondary'} onPress={setTab('clean')}>{t('tabClean')}</Button>
+          <Button key="refresh" dimColor onPress={async () => { await refresh($); if (tb === 'clean') await rescan($) }}>{t('refresh')}</Button>
         </Box>
         {msg !== '' && <Text color="warning">{msg}</Text>}
       </Box>
     )
 
     // ---- 1. Đội hình ----
-    if (t === 'team') {
+    if (tb === 'team') {
       const sel = await read($, open)
       const asking = await read($, stopAsk)
       const W = Math.max(8, Math.min(20, cols - 40))
@@ -566,7 +572,7 @@ export const register: Register = (on, options) => {
       return (
         <Box flexDirection="column">
           {top}
-          {live.length === 0 && <Text dimColor>{snap ? 'Không có phiên nào đang đăng ký.' : 'Đang đọc ~/.claude/sessions…'}</Text>}
+          {live.length === 0 && <Text dimColor>{snap ? t('noSessions') : t('readingSessions')}</Text>}
           {live.map(s => {
             const st = statusOf(s)
             const k = s.rotateK, rotate = k * 1000, warn = Math.max(0, k - gap) * 1000
@@ -581,53 +587,53 @@ export const register: Register = (on, options) => {
                   <Button key={`row-${s.id}`} plain onPress={() => jump($, s, e.surface)}>
                     <Text color={st.color}>{st.icon} {st.label}</Text>{' '}
                     <Text bold>{clip(s.name, Math.max(12, cols - 36))}</Text>{' '}
-                    <Text dimColor>{modelShort(s.model)}{s.life > 1 ? ` · đời ${s.life}` : ''}{s.id === selfId ? ' · phiên này' : ''}</Text>{s.modDead ? <Text color="error"> · mod không chạy</Text> : null}
+                    <Text dimColor>{modelShort(s.model)}{s.life > 1 ? ` · ${t('life', { n: s.life })}` : ''}{s.id === selfId ? ` · ${t('thisSession')}` : ''}</Text>{s.modDead ? <Text color="error"> · {t('modDead')}</Text> : null}
                   </Button>
-                  <Button key={`info-${s.id}`} plain dimColor onPress={() => update($, open, v => (v === s.id ? '' : s.id))}>{isOpen ? '▴ thu' : 'ⓘ chi tiết'}</Button>
-                  {canStop(s) && <Button key={`stop-${s.id}`} plain dimColor onPress={() => update($, stopAsk, v => (v === s.id ? '' : s.id))}>⏻ tắt</Button>}
+                  <Button key={`info-${s.id}`} plain dimColor onPress={() => update($, open, v => (v === s.id ? '' : s.id))}>{isOpen ? t('collapse') : t('details')}</Button>
+                  {canStop(s) && <Button key={`stop-${s.id}`} plain dimColor onPress={() => update($, stopAsk, v => (v === s.id ? '' : s.id))}>{t('stop')}</Button>}
                 </Box>
                 {asking === s.id && canStop(s) && (
                   <Box flexDirection="row" columnGap={1} alignItems="center">
-                    <Text color="warning">Tắt phiên này, lấy lại ~{fmtMem(s.mem)} RAM? {inApp(s) ? 'Chat vẫn giữ, gửi tin vào là app mở lại.' : 'Chat vẫn giữ: bấm tên phiên để mở lại trong cửa sổ terminal mới. Tab terminal cũ của nó sẽ đứng lại, cứ đóng đi.'}{s.jobs.length ? ` ${s.jobs.length} job nền vẫn chạy tiếp.` : ''}</Text>
-                    <Button key={`stop-yes-${s.id}`} variant="primary" onPress={() => stopSession($, s.id)}>Có, tắt</Button>
-                    <Button key={`stop-no-${s.id}`} onPress={() => update($, stopAsk, () => '')}>Huỷ</Button>
+                    <Text color="warning">{t('stopAsk', { mem: fmtMem(s.mem) })} {t(inApp(s) ? 'stopAskApp' : 'stopAskTerm')}{s.jobs.length ? ` ${t('stopAskJobs', { n: s.jobs.length })}` : ''}</Text>
+                    <Button key={`stop-yes-${s.id}`} variant="primary" onPress={() => stopSession($, s.id)}>{t('yesStop')}</Button>
+                    <Button key={`stop-no-${s.id}`} onPress={() => update($, stopAsk, () => '')}>{t('cancel')}</Button>
                   </Box>
                 )}
                 <Text>
                   <Text color={ctxColor}>{bar(s.ctx / rotate, W)}</Text>{' '}
-                  <Text dimColor>{fmtTokens(s.ctx)}/{fmtTokens(rotate)}{s.custom ? ' (mốc riêng)' : ''}{s.auto ? ' · 🔄 tự rotate' : ' · tự rotate tắt'} · RAM {fmtMem(s.mem)}{s.jobs.length ? ` · ${s.jobs.length} job nền` : ''} · hoạt động {s.lastTs ? fmtAge(Math.round((now - s.lastTs) / 1000)) + ' trước' : '–'}</Text>
+                  <Text dimColor>{fmtTokens(s.ctx)}/{fmtTokens(rotate)}{s.custom ? ` (${t('ownMark')})` : ''} · {t(s.auto ? 'autoOn' : 'autoOff')} · RAM {fmtMem(s.mem)}{s.jobs.length ? ` · ${t('nBgJobs', { n: s.jobs.length })}` : ''} · {t('active', { t: s.lastTs ? t('ago', { t: fmtAge(Math.round((now - s.lastTs) / 1000)) }) : '–' })}</Text>
                 </Text>
                 {doing !== '' && <Text color="success" wrap="truncate-end">▶ {doing}</Text>}
                 {isOpen && (
                   <Box flexDirection="column" paddingLeft={2} marginTop={1}>
-                    {s.lastPrompt !== '' && <Text><Text dimColor>Yêu cầu: </Text>{s.lastPrompt}</Text>}
-                    {s.lastSay !== '' && <Text><Text dimColor>Báo cáo: </Text>{clip(s.lastSay, 600)}</Text>}
+                    {s.lastPrompt !== '' && <Text><Text dimColor>{t('request')} </Text>{s.lastPrompt}</Text>}
+                    {s.lastSay !== '' && <Text><Text dimColor>{t('report')} </Text>{clip(s.lastSay, 600)}</Text>}
                     {s.jobs.slice(0, 6).map(j => (
-                      <Text dimColor>job {j.name} · pid {j.pid} · {fmtMem(j.mem)} · chạy {fmtAge(j.runSecs)}</Text>
+                      <Text dimColor>{t('jobLine', { name: j.name, pid: j.pid, mem: fmtMem(j.mem), t: fmtAge(j.runSecs) })}</Text>
                     ))}
                     <Text dimColor>{s.cwd} · pid {s.pid} · {s.entry} {s.version}</Text>
                     <Box flexDirection="row" columnGap={1} marginTop={1} alignItems="center">
-                      <Text dimColor>Mốc rotate của phiên này:</Text>
+                      <Text dimColor>{t('markLabel')}</Text>
                       {[...new Set([cfg.rotateK, ...THRESHOLD_CHOICES])].sort((a, b) => a - b).map(c => (
                         <Button key={`mk-${c}-${s.id}`} variant={c === k ? 'primary' : 'secondary'} onPress={() => setThreshold($, s.id, c)}>{`${c}k`}</Button>
                       ))}
                     </Box>
                     <Box flexDirection="row" columnGap={1} marginTop={1} alignItems="center">
-                      <Text dimColor>Tự rotate khi chạm mốc:</Text>
-                      <Button key={`auto-on-${s.id}`} variant={s.auto ? 'primary' : 'secondary'} onPress={() => setAuto($, s.id, true)}>Bật</Button>
-                      <Button key={`auto-off-${s.id}`} variant={s.auto ? 'secondary' : 'primary'} onPress={() => setAuto($, s.id, false)}>Tắt</Button>
+                      <Text dimColor>{t('autoLabel')}</Text>
+                      <Button key={`auto-on-${s.id}`} variant={s.auto ? 'primary' : 'secondary'} onPress={() => setAuto($, s.id, true)}>{t('on')}</Button>
+                      <Button key={`auto-off-${s.id}`} variant={s.auto ? 'secondary' : 'primary'} onPress={() => setAuto($, s.id, false)}>{t('off')}</Button>
                     </Box>
                     {s.handoff !== '' && (
                       <Box flexDirection="row" columnGap={1} marginTop={1} alignItems="center">
-                        <Text dimColor>Bàn giao gần nhất ({fmtAge(Math.round((now - s.rotatedAt) / 1000))} trước):</Text>
+                        <Text dimColor>{t('lastHandoff', { t: fmtAge(Math.round((now - s.rotatedAt) / 1000)) })}</Text>
                         <Button key={`handoff-${s.id}`} plain dimColor onPress={() => $.process.run(['cmd.exe', '/d', '/c', 'start', '', s.handoff.split('/').join(String.fromCharCode(92))]).then(() => undefined)}>{clip(s.handoff.split('/').slice(-2).join('/'), 60)}</Button>
                       </Box>
                     )}
                     <Box flexDirection="row" columnGap={1} marginTop={1}>
                       <Button key={`copy-${s.id}`} onPress={async () => {
                         await $.ui.copy({ text: `claude --resume ${s.id}`, surface: e.surface })
-                        $.ui.toast('Đã copy lệnh claude --resume')
-                      }}>Copy lệnh resume</Button>
+                        $.ui.toast(t('copiedResume'))
+                      }}>{t('copyResume')}</Button>
                     </Box>
                   </Box>
                 )}
@@ -636,7 +642,7 @@ export const register: Register = (on, options) => {
           })}
           {(snap?.rotations.length ?? 0) > 0 && (
             <Box flexDirection="column" marginTop={1}>
-              <Text bold>Nhật ký tự rotate</Text>
+              <Text bold>{t('rotateLog')}</Text>
               {snap?.rotations.map(l => <Text dimColor wrap="truncate-end">{l}</Text>)}
             </Box>
           )}
@@ -645,22 +651,22 @@ export const register: Register = (on, options) => {
     }
 
     // ---- 5. Cảnh báo ----
-    if (t === 'alerts') {
+    if (tb === 'alerts') {
       return (
         <Box flexDirection="column">
           {top}
-          {alerts.length === 0 && <Text color="success">Không có cảnh báo nào. ✓</Text>}
+          {alerts.length === 0 && <Text color="success">{t('noAlerts')}</Text>}
           {alerts.map((a: Alert, i: number) => (
             <Box key={`a-${i}`} flexDirection="column" marginBottom={1}>
               <Text>
-                <Text color={SEV[a.sev].color} bold>{SEV[a.sev].label}</Text>{'  '}
+                <Text color={SEV[a.sev].color} bold>{t(SEV[a.sev].label)}</Text>{'  '}
                 <Text bold>{a.who}</Text>
               </Text>
               <Text>{a.text}</Text>
             </Box>
           ))}
           <Text dimColor>
-            Ngưỡng: rotate {cfg.rotateK}k · cảnh báo {Math.min(cfg.warnK, cfg.rotateK)}k · RAM {cfg.memWarnMb} MB · im lặng {cfg.quietBusyMin}′ (mốc riêng từng phiên: ⓘ chi tiết ở tab Đội hình)
+            {t('thresholds', { rotate: cfg.rotateK, warn: Math.min(cfg.warnK, cfg.rotateK), mem: cfg.memWarnMb, quiet: cfg.quietBusyMin })}
           </Text>
         </Box>
       )
@@ -688,41 +694,41 @@ export const register: Register = (on, options) => {
       const j = Math.max(0, Math.min(DAY_STEPS.length - 1, (i < 0 ? DAY_STEPS.length - 1 : i) + dir))
       return DAY_STEPS[j]
     })
-    const diskLine = sc?.disk ? `${bar(1 - sc.disk.free / sc.disk.total, 16)} trống ${fmtMem(sc.disk.free)} / ${fmtMem(sc.disk.total)}` : ''
+    const diskLine = sc?.disk ? `${bar(1 - sc.disk.free / sc.disk.total, 16)} ${t('diskFree', { free: fmtMem(sc.disk.free), total: fmtMem(sc.disk.total) })}` : ''
     const W = cols
 
     return (
       <Box flexDirection="column">
         {top}
-        {!sc && <Text dimColor>Đang quét…</Text>}
+        {!sc && <Text dimColor>{t('scanningShort')}</Text>}
         {sc && (
           <Box flexDirection="column" borderStyle="round" borderDimColor paddingX={1} marginBottom={1}>
-            <Text>Hội thoại: <Text bold>{sc.convs.length}</Text> · tổng <Text bold>{fmtMem(sc.total)}</Text></Text>
+            <Text>{t('convs')} <Text bold>{sc.convs.length}</Text> · {t('total')} <Text bold>{fmtMem(sc.total)}</Text></Text>
             {diskLine !== '' && <Text dimColor>💽 {diskLine}</Text>}
-            <Text>Cũ hơn {N} ngày (xoá được): <Text bold>{older.length}</Text> · {fmtMem(older.reduce((n, c) => n + c.bytes, 0))}</Text>
-            <Text>Đã chọn: <Text bold color={chosen.length ? 'warning' : undefined}>{chosen.length}</Text> · {fmtMem(chosenBytes)}</Text>
+            <Text>{t('olderThan', { n: N })} <Text bold>{older.length}</Text> · {fmtMem(older.reduce((n, c) => n + c.bytes, 0))}</Text>
+            <Text>{t('picked')} <Text bold color={chosen.length ? 'warning' : undefined}>{chosen.length}</Text> · {fmtMem(chosenBytes)}</Text>
             <Text dimColor>
-              Claude Code tự xoá sau {sc.periodDays ?? 30} ngày (cleanupPeriodDays{sc.periodDays == null ? ', mặc định' : ''}). 🟢 = đang chạy, 🛡 = ghi trong {sc.protectHours} giờ qua: không bao giờ xoá.
+              {t('autoDelete', { d: sc.periodDays ?? 30, def: sc.periodDays == null ? t('isDefault') : '', h: sc.protectHours })}
             </Text>
           </Box>
         )}
         <Box flexDirection="row" flexWrap="wrap" columnGap={1} rowGap={1} marginBottom={1}>
-          <Button key="pick-old" onPress={() => update($, picked, list => [...new Set([...list, ...older.map(key)])])}>Chọn cũ hơn {N} ngày</Button>
+          <Button key="pick-old" onPress={() => update($, picked, list => [...new Set([...list, ...older.map(key)])])}>{t('pickOlder', { n: N })}</Button>
           <Button key="days-minus" onPress={stepDays(-1)}>N −</Button>
           <Button key="days-plus" onPress={stepDays(1)}>N +</Button>
-          <Button key="pick-none" onPress={() => update($, picked, () => [])}>Bỏ chọn</Button>
+          <Button key="pick-none" onPress={() => update($, picked, () => [])}>{t('pickNone')}</Button>
           <Button key="sort" onPress={() => update($, sort, s => (s === 'size' ? 'old' : s === 'old' ? 'project' : 'size'))}>
-            {`Sắp xếp: ${order === 'size' ? 'dung lượng' : order === 'old' ? 'cũ nhất' : 'dự án'}`}
+            {t('sortBy', { by: t(order === 'size' ? 'sortSize' : order === 'old' ? 'sortOld' : 'sortProject') })}
           </Button>
-          <Button key="delete" variant="primary" onPress={() => update($, confirm, () => chosen.length > 0)}>{`Xoá ${chosen.length} đã chọn`}</Button>
+          <Button key="delete" variant="primary" onPress={() => update($, confirm, () => chosen.length > 0)}>{t('deleteN', { n: chosen.length })}</Button>
         </Box>
         {isConfirm && (
           <Box flexDirection="column" borderStyle="round" borderColor="error" paddingX={1} marginBottom={1}>
-            <Text color="error" bold>Xoá vĩnh viễn {chosen.length} hội thoại ({fmtMem(chosenBytes)})?</Text>
-            <Text>Không vào Thùng rác; `claude --resume` các phiên đó sẽ không mở lại được. Phiên đang chạy và file ghi trong {cfg.protectHours} giờ qua được kiểm tra lại trên đĩa và bỏ qua.</Text>
+            <Text color="error" bold>{t('confirmDelete', { n: chosen.length, size: fmtMem(chosenBytes) })}</Text>
+            <Text>{t('confirmNote', { h: cfg.protectHours })}</Text>
             <Box flexDirection="row" columnGap={1} marginTop={1}>
-              <Button key="confirm-yes" variant="primary" onPress={() => deletePicked($)}>Có, xoá</Button>
-              <Button key="confirm-no" onPress={() => update($, confirm, () => false)}>Huỷ</Button>
+              <Button key="confirm-yes" variant="primary" onPress={() => deletePicked($)}>{t('yesDelete')}</Button>
+              <Button key="confirm-no" onPress={() => update($, confirm, () => false)}>{t('cancel')}</Button>
             </Box>
           </Box>
         )}
@@ -730,7 +736,7 @@ export const register: Register = (on, options) => {
           const k = key(c)
           const can = deletable(c)
           const mark = c.live ? '🟢' : c.recent ? '🛡' : pick.has(k) ? '☑' : '☐'
-          const label = c.name || c.title || '(trống)'
+          const label = c.name || c.title || t('empty')
           return (
             <Box key={`c-${k}`} flexDirection="row" columnGap={1}>
               <Button key={`pick-${k}`} plain dimColor={!can} onPress={() => can ? update($, picked, list => (list.includes(k) ? list.filter(x => x !== k) : [...list, k])) : undefined}>
@@ -742,7 +748,7 @@ export const register: Register = (on, options) => {
             </Box>
           )
         })}
-        {convs.length > 300 && <Text dimColor>… và {convs.length - 300} hội thoại nữa (sắp xếp lại để xem)</Text>}
+        {convs.length > 300 && <Text dimColor>{t('more', { n: convs.length - 300 })}</Text>}
       </Box>
     )
   })

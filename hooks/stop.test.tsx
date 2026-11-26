@@ -17,7 +17,7 @@ const PANE = {
   props: { title: 'Đài Chỉ Huy', isFocused: false, bodyColumns: 100, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} },
 } as const
 
-test('⏻ tắt ends only an idle session other than this one, after a confirm', async ($, on) => {
+test('⏻ tắt ends only an idle session other than this one, after a confirm', { options: { language: 'vi' } }, async ($, on) => {
   on('command.register', () => ({ value: { command: 'chihuy' } }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('ui.panes', () => ({ value: [] }))
@@ -71,7 +71,7 @@ test('⏻ tắt ends only an idle session other than this one, after a confirm',
   await ui.unmount()
 })
 
-test('⏻ tắt does nothing when the session got busy before the confirm', async ($, on) => {
+test('⏻ tắt does nothing when the session got busy before the confirm', { options: { language: 'vi' } }, async ($, on) => {
   on('command.register', () => ({ value: { command: 'chihuy' } }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('ui.panes', () => ({ value: [] }))
@@ -106,7 +106,7 @@ test('⏻ tắt does nothing when the session got busy before the confirm', asyn
 // a session in a terminal: no page in the desktop app (no host id), entrypoint cli
 const CLI = { ...base, host: '', entry: 'cli', id: 'c0ffee00-1111-2222-3333-444444444444', name: 'game-b7', pid: 7373, status: 'idle' }
 
-test('a terminal session: ⏻ tắt says how to open it again, its name resumes it in a new terminal window', async ($, on) => {
+test('a terminal session: ⏻ tắt says how to open it again, its name resumes it in a new terminal window', { options: { language: 'vi' } }, async ($, on) => {
   on('command.register', () => ({ value: { command: 'chihuy' } }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('ui.panes', () => ({ value: [] }))
@@ -160,7 +160,7 @@ test('a terminal session: ⏻ tắt says how to open it again, its name resumes 
   await ui.unmount()
 })
 
-test('a stopped terminal session whose window cannot be opened gets its resume command copied', async ($, on) => {
+test('a stopped terminal session whose window cannot be opened gets its resume command copied', { options: { language: 'vi' } }, async ($, on) => {
   on('command.register', () => ({ value: { command: 'chihuy' } }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('ui.panes', () => ({ value: [] }))

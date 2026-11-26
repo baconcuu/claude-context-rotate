@@ -44,7 +44,7 @@ const turnEnd = (isAborted = false) => ({
   reason: isAborted ? 'aborted' : 'answer', answer: '', durationMs: 1, isAborted, turnId: 't',
 }) as never
 
-test('past its threshold a session writes a handoff, clears and starts the new chat on it', async ($, on) => {
+test('past its threshold a session writes a handoff, clears and starts the new chat on it', { options: { language: 'vi' } }, async ($, on) => {
   const ctx = { value: 260_000 }
   const w = world(on, ctx)
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
@@ -69,7 +69,7 @@ test('past its threshold a session writes a handoff, clears and starts the new c
   expect(w.files[`${DATA}/rotate.log`].text).toContain('đời 1 → 2')
 })
 
-test('a session with tự rotate off, or under its own threshold, does not rotate', async ($, on) => {
+test('a session with tự rotate off, or under its own threshold, does not rotate', { options: { language: 'vi' } }, async ($, on) => {
   const ctx = { value: 300_000 }
   const w = world(on, ctx)
   // its own threshold 350k
@@ -87,7 +87,7 @@ test('a session with tự rotate off, or under its own threshold, does not rotat
   expect(w.submitted).toEqual([])
 })
 
-test('no handoff file, or an interrupted handoff turn: no /clear, and no retry until 30k more', async ($, on) => {
+test('no handoff file, or an interrupted handoff turn: no /clear, and no retry until 30k more', { options: { language: 'vi' } }, async ($, on) => {
   const ctx = { value: 260_000 }
   const w = world(on, ctx)
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
@@ -113,7 +113,7 @@ test('no handoff file, or an interrupted handoff turn: no /clear, and no retry u
   expect(w.submitted.length).toBe(2)
 })
 
-test('a long turn past its threshold: a tool result carries the handoff note once; the turn end rotates', async ($, on) => {
+test('a long turn past its threshold: a tool result carries the handoff note once; the turn end rotates', { options: { language: 'vi' } }, async ($, on) => {
   const ctx = { value: 200_000 }
   const w = world(on, ctx)
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
@@ -143,7 +143,7 @@ test('a long turn past its threshold: a tool result carries the handoff note onc
   expect(w.submitted[0]).toContain('đời 2')
 })
 
-test('a long turn that ends without the handoff the note asked for: it is asked as a prompt of its own', async ($, on) => {
+test('a long turn that ends without the handoff the note asked for: it is asked as a prompt of its own', { options: { language: 'vi' } }, async ($, on) => {
   const ctx = { value: 270_000 }
   const w = world(on, ctx)
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
@@ -162,7 +162,7 @@ test('a long turn that ends without the handoff the note asked for: it is asked 
   expect(w.commands).toEqual(['clear'])
 })
 
-test('the engine drops the handoff request (a Stop stands): nothing is left waiting, the next turn end asks again', async ($, on) => {
+test('the engine drops the handoff request (a Stop stands): nothing is left waiting, the next turn end asks again', { options: { language: 'vi' } }, async ($, on) => {
   const ctx = { value: 400_000 }
   const w = world(on, ctx, { n: 1 })
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
@@ -181,7 +181,7 @@ test('the engine drops the handoff request (a Stop stands): nothing is left wait
   expect(w.commands).toEqual(['clear'])
 })
 
-test('a turn the person queued ends first: the mod waits for the handoff turn', async ($, on) => {
+test('a turn the person queued ends first: the mod waits for the handoff turn', { options: { language: 'vi' } }, async ($, on) => {
   const ctx = { value: 260_000 }
   const w = world(on, ctx)
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
@@ -199,7 +199,7 @@ test('a turn the person queued ends first: the mod waits for the handoff turn', 
   expect(w.commands).toEqual(['clear'])
 })
 
-test('a handoff the agent wrote itself before waiting for the person: the turn end rotates on it', async ($, on) => {
+test('a handoff the agent wrote itself before waiting for the person: the turn end rotates on it', { options: { language: 'vi' } }, async ($, on) => {
   const ctx = { value: 150_000 }
   const w = world(on, ctx)
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
@@ -226,7 +226,7 @@ test('a handoff the agent wrote itself before waiting for the person: the turn e
   expect(w.files[req].text).toBe('')
 })
 
-test('a request from a small chat is dropped without a rotation', async ($, on) => {
+test('a request from a small chat is dropped without a rotation', { options: { language: 'vi' } }, async ($, on) => {
   const ctx = { value: 90_000 }
   const w = world(on, ctx)
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })

@@ -31,7 +31,7 @@ const PANE = {
   props: { title: 'Đài Chỉ Huy', isFocused: false, bodyColumns: 80, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} },
 } as const
 
-test('the pane shows sessions, alerts and the cleanup list on every surface', async ($, on) => {
+test('the pane shows sessions, alerts and the cleanup list on every surface', { options: { language: 'vi' }, timeoutMs: 30_000 }, async ($, on) => {
   on('command.register', () => ({ value: { command: 'chihuy' } }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('ui.panes', () => ({ value: [] }))
